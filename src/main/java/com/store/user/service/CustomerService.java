@@ -1,8 +1,11 @@
 package com.store.user.service;
 
 import com.store.user.dto.CustomerResponse;
+import com.store.user.dto.WalletTransactionResponse;
 import com.store.user.entity.Customer;
+import com.store.user.entity.WalletTransaction;
 import com.store.user.repository.CustomerRepository;
+import com.store.user.repository.WalletTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,12 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class CustomerService {
     private final CustomerRepository customerRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
@@ -74,6 +79,15 @@ public class CustomerService {
         customer.setWalletBalance(newBalance);
         Customer updatedCustomer = customerRepository.save(customer);
 
+        // Save wallet transaction
+        WalletTransaction transaction = WalletTransaction.builder()
+                .customerId(customerId)
+                .type("CREDIT")
+                .amount(amount)
+                .description(description)
+                .build();
+        walletTransactionRepository.save(transaction);
+
         log.info("Added ₹{} to wallet of customer {}. Description: {}. New balance: ₹{}", 
                 amount, customerId, description, newBalance);
 
@@ -101,10 +115,47 @@ public class CustomerService {
         customer.setWalletBalance(newBalance);
         Customer updatedCustomer = customerRepository.save(customer);
 
+        // Save wallet transaction
+        WalletTransaction transaction = WalletTransaction.builder()
+                .customerId(customerId)
+                .type("DEBIT")
+                .amount(amount)
+                .description(description)
+                .build();
+        walletTransactionRepository.save(transaction);
+
         log.info("Deducted ₹{} from wallet of customer {}. Description: {}. New balance: ₹{}", 
                 amount, customerId, description, newBalance);
 
         return mapToResponse(updatedCustomer);
+    }
+
+    /**
+     * Get customer wallet transactions
+     */
+    public List<WalletTransactionResponse> getWalletTransactions(String customerId) {
+        // Verify customer exists
+        customerRepository.findById(customerId)
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found: " + customerId));
+        
+        List<WalletTransaction> transactions = walletTransactionRepository.findByCustomerIdOrderByCreatedAtDesc(customerId);
+        return transactions.stream()
+                .map(this::mapTransactionToResponse)
+                .toList();
+    }
+
+    /**
+     * Map WalletTransaction entity to WalletTransactionResponse DTO
+     */
+    private WalletTransactionResponse mapTransactionToResponse(WalletTransaction transaction) {
+        return WalletTransactionResponse.builder()
+                .id(transaction.getId())
+                .customerId(transaction.getCustomerId())
+                .type(transaction.getType())
+                .amount(transaction.getAmount())
+                .description(transaction.getDescription())
+                .createdAt(transaction.getCreatedAt() != null ? transaction.getCreatedAt().format(formatter) : null)
+                .build();
     }
 
     /**

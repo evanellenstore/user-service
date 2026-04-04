@@ -134,5 +134,18 @@ public class UserController {
         }
     }
 
+    /**
+     * Get customer wallet transactions
+     */
+    @GetMapping("/customers/{customerId}/wallet/transactions")
+    public ResponseEntity<?> getWalletTransactions(@PathVariable String customerId) {
+        try {
+            var transactions = customerService.getWalletTransactions(customerId);
+            return ResponseEntity.ok(transactions);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
 
 }
