@@ -147,5 +147,21 @@ public class UserController {
         }
     }
 
+    /**
+     * Get customer wallet transactions with pagination
+     */
+    @GetMapping("/customers/{customerId}/wallet/transactions/paginated")
+    public ResponseEntity<?> getWalletTransactionsPaginated(
+            @PathVariable String customerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            var transactions = customerService.getWalletTransactionsPaginated(customerId, page, size);
+            return ResponseEntity.ok(transactions);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
 
 }

@@ -1,6 +1,7 @@
 package com.store.user.service;
 
 import com.store.user.dto.CustomerResponse;
+import com.store.user.dto.PaginatedResponse;
 import com.store.user.dto.WalletTransactionResponse;
 import com.store.user.entity.Customer;
 import com.store.user.entity.WalletTransaction;
@@ -115,11 +116,11 @@ public class CustomerService {
         customer.setWalletBalance(newBalance);
         Customer updatedCustomer = customerRepository.save(customer);
 
-        // Save wallet transaction
+        // Save wallet transaction - store as negative amount for debit
         WalletTransaction transaction = WalletTransaction.builder()
                 .customerId(customerId)
                 .type("DEBIT")
-                .amount(amount)
+                .amount(amount.negate())  // Store as negative for debit
                 .description(description)
                 .build();
         walletTransactionRepository.save(transaction);
@@ -142,6 +143,47 @@ public class CustomerService {
         return transactions.stream()
                 .map(this::mapTransactionToResponse)
                 .toList();
+    }
+
+    /**
+     * Get customer wallet transactions with pagination
+     */
+    public PaginatedResponse<WalletTransactionResponse> getWalletTransactionsPaginated(String customerId, int pageNumber, int pageSize) {
+        // Validate pagination parameters
+        if (pageNumber < 0) pageNumber = 0;
+        if (pageSize <= 0) pageSize = 10;
+        if (pageSize > 100) pageSize = 100; // Max page size limit
+
+        // Verify customer exists
+        customerRepository.findById(customerId)
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found: " + customerId));
+        
+        // Get all transactions for counting
+        List<WalletTransaction> allTransactions = walletTransactionRepository.findByCustomerIdOrderByCreatedAtDesc(customerId);
+        long totalElements = allTransactions.size();
+        int totalPages = (int) Math.ceil((double) totalElements / pageSize);
+
+        // Calculate offset and apply pagination
+        int offset = pageNumber * pageSize;
+        List<WalletTransaction> pageTransactions = allTransactions.stream()
+                .skip(offset)
+                .limit(pageSize)
+                .toList();
+
+        // Map to response DTOs
+        List<WalletTransactionResponse> content = pageTransactions.stream()
+                .map(this::mapTransactionToResponse)
+                .toList();
+
+        return PaginatedResponse.<WalletTransactionResponse>builder()
+                .content(content)
+                .pageNumber(pageNumber)
+                .pageSize(pageSize)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .hasNext(pageNumber < totalPages - 1)
+                .hasPrevious(pageNumber > 0)
+                .build();
     }
 
     /**
